@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Quest | Pro</title>
+    <style>
+        :root {
+            --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #38bdf8; --xp-color: #4ade80;
+        }
+        [data-theme="light"] {
+            --bg: #f1f5f9; --card: #ffffff; --text: #1e293b; --accent: #0284c7; --xp-color: #16a34a;
+        }
+
+        body {
+            background-color: var(--bg); color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            margin: 0; padding: 20px; transition: 0.3s; overflow-x: hidden;
+        }
+
+        .container { width: 100%; max-width: 450px; position: relative; }
+
+        /* XP Progress Bar */
+        .xp-section { margin-bottom: 25px; }
+        .stats-header { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; }
+        .progress-container {
+            width: 100%; height: 14px; background: var(--card);
+            border-radius: 7px; overflow: hidden; border: 1px solid var(--accent);
+        }
+        #progress-bar {
+            width: 0%; height: 100%; background: var(--xp-color);
+            transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .card {
+            background: var(--card); padding: 25px; border-radius: 20px;
+            margin-bottom: 20px; box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+            text-align: center; border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        #timer-display { font-size: 4rem; font-weight: 800; color: var(--accent); margin: 10px 0; }
+
+        .btn { padding: 12px 24px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+        .btn:active { transform: scale(0.95); }
+        .btn-primary { background: var(--accent); color: var(--bg); }
+        
+        /* Task Styling */
+        .task-list { list-style: none; padding: 0; }
+        .task-item {
+            background: var(--card); padding: 15px; border-radius: 12px;
+            display: flex; justify-content: space-between; margin-bottom: 10px;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        .completed { opacity: 0.5; border-left: 4px solid var(--xp-color); }
+
+        /* Confetti Animation */
+        .confetti {
+            position: fixed; width: 10px; height: 10px; background-color: #f2d74e;
+            top: -10px; z-index: 1000; animation: fall 3s linear forwards;
+        }
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="main-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="margin: 0; color: var(--accent);">Lvl <span id="level-num">1</span></h2>
+            <button id="themeToggle" class="btn" style="padding: 5px 15px; font-size: 0.8rem;">🌙 Theme</button>
+        </div>
+
+        <div class="xp-section">
+            <div class="stats-header">
+                <span>Experience</span>
+                <span id="xp-text">0 / 100 XP</span>
+            </div>
+            <div class="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div id="timer-display">25:00</div>
+            <button id="startTimer" class="btn btn-primary">Start Focus (+50 XP)</button>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <input type="text" id="taskInput" style="flex:1; padding:12px; border-radius:10px; background:var(--card); color:var(--text); border:1px solid var(--accent);" placeholder="Enter a Quest...">
+            <button id="addTaskBtn" class="btn btn-primary">Add</button>
+        </div>
+        <ul id="taskList" class="task-list"></ul>
+    </div>
+
+    <script>
+        let xp = parseInt(localStorage.getItem('xp')) || 0;
+        let level = parseInt(localStorage.getItem('level')) || 1;
+        let tasks = JSON.parse(localStorage.getItem('quests')) || [];
+
+        function celebrate() {
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
+                confetti.style.animationDuration = (Math.random() * 2 + 1) + 's';
+                document.body.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 3000);
+            }
+        }
+
+        function addXP(amount) {
+            xp += amount;
+            if (xp >= 100) {
+                xp -= 100;
+                level++;
+                celebrate();
+            }
+            saveAndRender();
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('xp', xp);
+            localStorage.setItem('level', level);
+            localStorage.setItem('quests', JSON.stringify(tasks));
+
+            document.getElementById('level-num').innerText = level;
+            document.getElementById('xp-text').innerText = `${xp} / 100 XP`;
+            document.getElementById('progress-bar').style.width = xp + "%";
+
+            const taskList = document.getElementById('taskList');
+            taskList.innerHTML = tasks.map((t, i) => `
+                <li class="task-item ${t.done ? 'completed' : ''}">
+                    <span onclick="toggleTask(${i})" style="cursor:pointer; flex:1;">${t.text}</span>
+                    <button onclick="deleteTask(${i})" style="background:none; border:none; color:#fb7185; font-weight:bold;">✕</button>
+                </li>
+            `).join('');
+        }
+
+        document.getElementById('addTaskBtn').onclick = () => {
+            const input = document.getElementById('taskInput');
+            if (input.value.trim()) {
+                tasks.push({ text: input.value, done: false });
+                input.value = '';
+                saveAndRender();
+            }
+        };
+
+        window.toggleTask = (i) => {
+            if (!tasks[i].done) addXP(20); 
+            tasks[i].done = !tasks[i].done;
+            saveAndRender();
+        };
+
+        window.deleteTask = (i) => { tasks.splice(i, 1); saveAndRender(); };
+
+        let timeLeft = 25 * 60;
+        let timerId = null;
+        document.getElementById('startTimer').onclick = function() {
+            if (timerId) {
+                clearInterval(timerId); timerId = null; this.innerText = "Resume Focus";
+            } else {
+                this.innerText = "Focusing...";
+                timerId = setInterval(() => {
+                    timeLeft--;
+                    const m = Math.floor(timeLeft / 60);
+                    const s = timeLeft % 60;
+                    document.getElementById('timer-display').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+                    if (timeLeft <= 0) {
+                        clearInterval(timerId);
+                        addXP(50);
+                        timeLeft = 25 * 60;
+                        this.innerText = "Start Focus (+50 XP)";
+                    }
+                }, 1000);
+            }
+        };
+
+        document.getElementById('themeToggle').onclick = () => {
+            const html = document.documentElement;
+            html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+        };
+
+        saveAndRender();
+    </script>
+</body>
+</html>
